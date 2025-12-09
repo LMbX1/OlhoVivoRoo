@@ -4,11 +4,23 @@
 import { useState } from 'react';
 import { Camera, MapPin, Send, Home, CheckCircle, AlertCircle, ShieldCheck, User, Phone } from 'lucide-react';
 
+  interface FormDataState {
+    name: string;
+    phone: string;
+    location: { latitude: number; longitude: number } | null;
+    locationError: string | null;
+    description: string;
+    photo: File | null;
+    photoPreview: string | null;
+    date: string | null;
+    lgpdAccepted: boolean;
+  }
+
 export default function OlhoVivoROO() {
   const [currentPage, setCurrentPage] = useState('home');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const [formData, setFormData] = useState({
+const [formData, setFormData] = useState<FormDataState>({
     name: '',
     phone: '',
     location: null,
@@ -58,7 +70,7 @@ export default function OlhoVivoROO() {
     );
   };
 
-  const handlePhotoChange = (e) => {
+  const handlePhotoChange = (e: any) => {
     const file = e.target.files[0];
     if (file) {
       setFormData(prev => ({
