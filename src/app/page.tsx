@@ -1,30 +1,31 @@
-// src/app/page.tsx
 "use client";
 
 import { useState } from 'react';
 import { Camera, MapPin, Send, Home, CheckCircle, AlertCircle, ShieldCheck, User, Phone } from 'lucide-react';
 
-  interface FormDataState {
-    name: string;
-    phone: string;
-    location: { latitude: number; longitude: number } | null;
-    locationError: string | null;
-    description: string;
-    photo: File | null;
-    photoPreview: string | null;
-    date: string | null;
-    lgpdAccepted: boolean;
-  }
+// Definição da interface (O contrato de tipos)
+interface FormDataState {
+  name: string;
+  phone: string;
+  location: { latitude: number; longitude: number } | null;
+  locationError: string | null;
+  description: string;
+  photo: File | null;
+  photoPreview: string | null;
+  date: string | null;
+  lgpdAccepted: boolean;
+}
 
 export default function OlhoVivoROO() {
   const [currentPage, setCurrentPage] = useState('home');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-const [formData, setFormData] = useState<FormDataState>({
+  // AQUI É O PULO DO GATO: <FormDataState>
+  const [formData, setFormData] = useState<FormDataState>({
     name: '',
     phone: '',
     location: null,
-    locationError: null,
+    locationError: null, // O TypeScript agora sabe que isso pode virar string depois
     description: '',
     photo: null,
     photoPreview: null,
@@ -71,7 +72,7 @@ const [formData, setFormData] = useState<FormDataState>({
   };
 
   const handlePhotoChange = (e: any) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0]; // Adicionei o ? para segurança extra
     if (file) {
       setFormData(prev => ({
         ...prev,
@@ -82,6 +83,7 @@ const [formData, setFormData] = useState<FormDataState>({
   };
 
   const handleSubmit = async () => {
+    // Verificações de segurança
     if (!formData.name || !formData.phone || !formData.location || !formData.description || !formData.photo || !formData.lgpdAccepted) {
       alert('Por favor, preencha todos os campos e aceite os termos de uso.');
       return;
@@ -94,8 +96,9 @@ const [formData, setFormData] = useState<FormDataState>({
       dataToSend.append('name', formData.name);
       dataToSend.append('phone', formData.phone);
       dataToSend.append('description', formData.description);
-      dataToSend.append('latitude', formData.location.latitude);
-      dataToSend.append('longitude', formData.location.longitude);
+      // Forçando conversão para string para evitar erro de tipo no append
+      dataToSend.append('latitude', String(formData.location.latitude));
+      dataToSend.append('longitude', String(formData.location.longitude));
       dataToSend.append('photo', formData.photo);
 
       const response = await fetch('/api/denuncias', {
@@ -155,7 +158,7 @@ const [formData, setFormData] = useState<FormDataState>({
     }, 100);
   };
 
-  // Página Inicial
+  // Renderização
   if (currentPage === 'home') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-6">
@@ -195,7 +198,6 @@ const [formData, setFormData] = useState<FormDataState>({
     );
   }
 
-  // Página do Formulário
   if (currentPage === 'form') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-6">
@@ -374,7 +376,6 @@ const [formData, setFormData] = useState<FormDataState>({
     );
   }
 
-  // Página de Sucesso
   if (currentPage === 'success') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 p-6 flex items-center justify-center">
