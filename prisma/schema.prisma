@@ -1,0 +1,25 @@
+// prisma\schema.prisma
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model DenunciaTerreno {
+  id                  Int      @id @default(autoincrement())
+  
+  nomeDenunciante     String   @map("nome_denunciante") @db.VarChar(255)
+  telefoneDenunciante String   @map("telefone_denunciante") @db.VarChar(20)
+  descricao           String?  @db.Text
+  fotoUrl             String   @map("foto_url") @db.Text
+  latitude            Decimal  @db.Decimal(10, 8)
+  longitude           Decimal  @db.Decimal(11, 8)
+  status              String   @default("pendente") @db.VarChar(50)
+  dataCriacao         DateTime @default(now()) @map("data_criacao")
+  @@map("denuncias_terrenos")
+}
