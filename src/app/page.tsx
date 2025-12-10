@@ -32,7 +32,7 @@ export default function OlhoVivoROO() {
     lgpdAccepted: false
   });
 
-  const requestLocation = () => {
+const requestLocation = () => {
     if (!navigator.geolocation) {
       setFormData(prev => ({
         ...prev,
@@ -40,11 +40,26 @@ export default function OlhoVivoROO() {
       }));
       return;
     }
+
+    // Verifica se está em contexto seguro (HTTPS)
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+      setFormData(prev => ({
+        ...prev,
+        locationError: 'A geolocalização requer HTTPS. Por favor, acesse via conexão segura.'
+      }));
+      return;
+    }
+
     const options = {
-      enableHighAccuracy: true,
-      timeout: 20000,
-      maximumAge: 0
+      enableHighAccuracy: false,
+      timeout: 10000,
+      maximumAge: 30000
     };
+
+    setFormData(prev => ({
+      ...prev,
+      locationError: 'Buscando localização...'
+    }));
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -60,11 +75,11 @@ export default function OlhoVivoROO() {
       (error) => {
         let errorMessage = 'Erro ao obter localização';
         if (error.code === 1) {
-          errorMessage = 'Permissão de localização negada pelo usuário';
+          errorMessage = 'Permissão de localização negada. Por favor, habilite nas configurações do navegador.';
         } else if (error.code === 2) {
-          errorMessage = 'Localização indisponível';
+          errorMessage = 'Localização indisponível. Verifique se o GPS está ativado.';
         } else if (error.code === 3) {
-          errorMessage = 'Tempo esgotado ao buscar localização';
+          errorMessage = 'Tempo esgotado. Tente novamente.';
         }
         setFormData(prev => ({
           ...prev,
