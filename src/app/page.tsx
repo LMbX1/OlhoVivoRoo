@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Camera, MapPin, Send, Home, CheckCircle, AlertCircle, ShieldCheck, User, Phone } from 'lucide-react';
 
-// Definição da interface (O contrato de tipos)
+// Definição da interface
 interface FormDataState {
   name: string;
   phone: string;
@@ -20,12 +20,11 @@ export default function OlhoVivoROO() {
   const [currentPage, setCurrentPage] = useState('home');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // AQUI É O PULO DO GATO: <FormDataState>
   const [formData, setFormData] = useState<FormDataState>({
     name: '',
     phone: '',
     location: null,
-    locationError: null, // O TypeScript agora sabe que isso pode virar string depois
+    locationError: null,
     description: '',
     photo: null,
     photoPreview: null,
@@ -41,6 +40,11 @@ export default function OlhoVivoROO() {
       }));
       return;
     }
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 20000,
+      maximumAge: 0
+    };
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -67,12 +71,13 @@ export default function OlhoVivoROO() {
           location: null,
           locationError: errorMessage
         }));
-      }
+      },
+      options
     );
   };
 
   const handlePhotoChange = (e: any) => {
-    const file = e.target.files?.[0]; // Adicionei o ? para segurança extra
+    const file = e.target.files?.[0];
     if (file) {
       setFormData(prev => ({
         ...prev,
@@ -178,7 +183,7 @@ export default function OlhoVivoROO() {
 
             <div className="bg-blue-50 rounded-xl p-6 mb-8">
               <p className="text-gray-700 text-lg leading-relaxed">
-                Plataforma de denúncia de forma anônima de terrenos baldios
+                Plataforma de denúncia simplificada de terrenos baldios
               </p>
             </div>
 
@@ -249,7 +254,7 @@ export default function OlhoVivoROO() {
                 <button
                   type="button"
                   onClick={requestLocation}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 active:scale-95 touch-manipulation cursor-pointer text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all duration-200"
                 >
                   <MapPin className="w-5 h-5" />
                   Solicitar Localização
