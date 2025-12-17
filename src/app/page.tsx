@@ -1,8 +1,14 @@
+// src\app\page.tsx
 "use client";
 
 import { useState } from 'react';
-import { Camera, MapPin, Send, Home, CheckCircle, AlertCircle, ShieldCheck, User, Phone } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { Camera, MapPin, Send, Home, CheckCircle, AlertCircle, ShieldCheck, User, Phone, Map as MapIcon } from 'lucide-react';
 
+const MapWithNoSSR = dynamic(() => import('@/component/map'), { 
+  ssr: false,
+  loading: () => <div className="p-10 text-center">Carregando mapa...</div>
+});
 // Definição da interface
 interface FormDataState {
   name: string;
@@ -19,6 +25,8 @@ interface FormDataState {
 export default function OlhoVivoROO() {
   const [currentPage, setCurrentPage] = useState('home');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [denunciasMap, setDenunciasMap] = useState([]);
+  const [isLoadingMap, setIsLoadingMap] = useState(false);
   
   const [formData, setFormData] = useState<FormDataState>({
     name: '',
@@ -31,6 +39,21 @@ export default function OlhoVivoROO() {
     date: null,
     lgpdAccepted: false
   });
+
+  const handleOpenMap = async () => {
+    setIsLoadingMap(true);
+    try {
+      const res = await fetch('/api/denuncias');
+      const data = await res.json();
+      setDenunciasMap(data);
+      setCurrentPage('map');
+    } catch (error) {
+      alert('Erro ao carregar o mapa. Tente novamente.');
+      console.error(error);
+    } finally {
+      setIsLoadingMap(false);
+    }
+  };
 
 const requestLocation = () => {
     if (!navigator.geolocation) {
@@ -177,7 +200,14 @@ const requestLocation = () => {
       requestLocation();
     }, 100);
   };
-
+if (currentPage === 'map') {
+    return (
+        <MapWithNoSSR 
+            denuncias={denunciasMap} 
+            onBack={() => setCurrentPage('home')} 
+        />
+    );
+  }
   // Renderização
   if (currentPage === 'home') {
     return (
@@ -212,6 +242,21 @@ const requestLocation = () => {
               <Send className="w-6 h-6" />
               Nova Denúncia
             </button>
+            <button
+                onClick={handleOpenMap}
+                disabled={isLoadingMap}
+                className="w-full bg-white border-2 border-blue-900 text-blue-900 font-semibold py-4 px-8 rounded-3xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3 text-lg hover:bg-blue-50"
+                >
+                {isLoadingMap ? (
+                    'Carregando...'
+                ) : (
+                    <>
+                    <MapIcon className="w-6 h-6" />
+                    
+                    Visualizar Mapa de Denúncias
+                    </>
+                )}
+                </button>
           </div>
         </div>
       </div>

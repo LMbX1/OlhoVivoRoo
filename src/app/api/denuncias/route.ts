@@ -10,6 +10,32 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+export async function GET() {
+  try {
+    const denuncias = await prisma.denunciaTerreno.findMany({
+      select: {
+        id: true,
+        latitude: true,
+        longitude: true,
+        descricao: true,
+        fotoUrl: true,
+        status: true,
+        dataCriacao: true
+      },
+      orderBy: {
+        dataCriacao: 'desc'
+      }
+    });
+
+    return NextResponse.json(denuncias);
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Erro ao buscar denúncias' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
