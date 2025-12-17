@@ -36,7 +36,7 @@ export default function MapComponent({ denuncias, onBack }: MapProps) {
         <div className="h-screen w-full relative z-0">
             <button 
                 onClick={onBack}
-                className="absolute top-4 left-4 z-[9999] bg-white text-blue-900 px-4 py-2 rounded-lg shadow-lg font-bold hover:bg-gray-100 transition-colors border border-gray-200"
+                className="absolute top-4 left-15 z-[9999] bg-white text-blue-900 px-4 py-2 rounded-lg shadow-lg font-bold hover:bg-gray-100 transition-colors border border-gray-200"
             >
                 ← Voltar
             </button>
