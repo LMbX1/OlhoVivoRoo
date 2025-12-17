@@ -27,6 +27,7 @@ export default function OlhoVivoROO() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [denunciasMap, setDenunciasMap] = useState([]);
   const [isLoadingMap, setIsLoadingMap] = useState(false);
+  const [isRequestingLocation, setIsRequestingLocation] = useState(false);
   
   const [formData, setFormData] = useState<FormDataState>({
     name: '',
@@ -55,7 +56,7 @@ export default function OlhoVivoROO() {
     }
   };
 
-const requestLocation = () => {
+  const requestLocation = () => {
     if (!navigator.geolocation) {
       setFormData(prev => ({
         ...prev,
@@ -64,28 +65,25 @@ const requestLocation = () => {
       return;
     }
 
-    // Verifica se está em contexto seguro (HTTPS)
-    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-      setFormData(prev => ({
-        ...prev,
-        locationError: 'A geolocalização requer HTTPS. Por favor, acesse via conexão segura.'
-      }));
-      return;
-    }
-
+    setIsRequestingLocation(true);
+    
     const options = {
-      enableHighAccuracy: false,
+      enableHighAccuracy: true,
       timeout: 10000,
-      maximumAge: 30000
+      maximumAge: 0
     };
 
     setFormData(prev => ({
       ...prev,
-      locationError: 'Buscando localização...'
+      locationError: null,
+      location: null
     }));
+
+    console.log('Solicitando localização...');
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        console.log('Localização obtida:', position.coords);
         setFormData(prev => ({
           ...prev,
           location: {
@@ -94,21 +92,32 @@ const requestLocation = () => {
           },
           locationError: null
         }));
+        setIsRequestingLocation(false);
       },
       (error) => {
+        console.error('Erro de geolocalização:', error);
         let errorMessage = 'Erro ao obter localização';
-        if (error.code === 1) {
-          errorMessage = 'Permissão de localização negada. Por favor, habilite nas configurações do navegador.';
-        } else if (error.code === 2) {
-          errorMessage = 'Localização indisponível. Verifique se o GPS está ativado.';
-        } else if (error.code === 3) {
-          errorMessage = 'Tempo esgotado. Tente novamente.';
+        
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Permissão de localização negada. Por favor, habilite nas configurações do navegador e recarregue a página.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Localização indisponível. Verifique se o GPS/Wi-Fi está ativado e tente novamente.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Tempo esgotado ao buscar localização. Verifique sua conexão e tente novamente.';
+            break;
+          default:
+            errorMessage = `Erro desconhecido: ${error.message}`;
         }
+        
         setFormData(prev => ({
           ...prev,
           location: null,
           locationError: errorMessage
         }));
+        setIsRequestingLocation(false);
       },
       options
     );
@@ -196,16 +205,13 @@ const requestLocation = () => {
 
   const goToForm = () => {
     setCurrentPage('form');
-    setTimeout(() => {
-      requestLocation();
-    }, 100);
   };
-if (currentPage === 'map') {
+  if (currentPage === 'map') {
     return (
-        <MapWithNoSSR 
-            denuncias={denunciasMap} 
-            onBack={() => setCurrentPage('home')} 
-        />
+      <MapWithNoSSR 
+        denuncias={denunciasMap} 
+        onBack={() => setCurrentPage('home')} 
+      />
     );
   }
   // Renderização
@@ -232,31 +238,34 @@ if (currentPage === 'map') {
               </p>
             </div>
 
-            <button
-              onClick={goToForm}
-              className="w-full text-white font-semibold py-4 px-8 rounded-3xl shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-3 text-lg"
-              style={{ backgroundColor: '#1d3557', letterSpacing: '-0.2px' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#14293d'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1d3557'}
-            >
-              <Send className="w-6 h-6" />
-              Nova Denúncia
-            </button>
-            <button
+            <div className="space-y-4">
+              <button
+                onClick={goToForm}
+                className="w-full text-white font-semibold py-4 px-8 rounded-3xl shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-3 text-lg"
+                style={{ backgroundColor: '#1d3557', letterSpacing: '-0.2px' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#14293d'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1d3557'}
+              >
+                <Send className="w-6 h-6" />
+                Nova Denúncia
+              </button>
+              
+              <button
                 onClick={handleOpenMap}
                 disabled={isLoadingMap}
                 className="w-full bg-white border-2 border-blue-900 text-blue-900 font-semibold py-4 px-8 rounded-3xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3 text-lg hover:bg-blue-50"
-                >
+              >
                 {isLoadingMap ? (
-                    'Carregando...'
+                  'Carregando...'
                 ) : (
-                    <>
+                  <>
                     <MapIcon className="w-6 h-6" />
-                    
+
                     Visualizar Mapa de Denúncias
-                    </>
+                  </>
                 )}
-                </button>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -314,10 +323,11 @@ if (currentPage === 'map') {
                 <button
                   type="button"
                   onClick={requestLocation}
-                  className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 active:scale-95 touch-manipulation cursor-pointer text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all duration-200"
+                  disabled={isRequestingLocation}
+                  className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all duration-200"
                 >
                   <MapPin className="w-5 h-5" />
-                  Solicitar Localização
+                  {isRequestingLocation ? 'Buscando localização...' : 'Solicitar Localização'}
                 </button>
 
                 {formData.location && (
