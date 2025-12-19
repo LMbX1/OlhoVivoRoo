@@ -390,8 +390,8 @@ export default function OlhoVivoROO() {
                       <div className="text-sm flex-1">
                         <p className="font-semibold text-green-800">Localização capturada!</p>
                         <p className="text-green-700">
-                          Lat: {formData.location.latitude.toFixed(6)}, 
-                          Lng: {formData.location.longitude.toFixed(6)}
+                          Lat: {formData.location.latitude.toFixed(10)}, 
+                          Lng: {formData.location.longitude.toFixed(10)}
                         </p>
                         {formData.location.accuracy && (
                           <div className="mt-2">
