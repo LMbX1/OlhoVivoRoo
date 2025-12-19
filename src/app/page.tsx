@@ -70,8 +70,8 @@ export default function OlhoVivoROO() {
     
     const options = {
       enableHighAccuracy: true,
-      timeout: 30000, // Aumentado para 30 segundos
-      maximumAge: 0 // Força nova leitura sempre
+      timeout: 10000,
+      maximumAge: 60000 // Força nova leitura sempre
     };
 
     setFormData(prev => ({
@@ -80,19 +80,14 @@ export default function OlhoVivoROO() {
       location: null
     }));
 
-    console.log('Solicitando localização precisa... Aguarde o GPS estabilizar.');
+    console.log('Solicitando localização...');
 
     let bestAccuracy = Infinity;
-    let bestReading: GeolocationPosition | null = null;
-    let readingsCount = 0;
     let watchId: number;
     let timeoutId: NodeJS.Timeout;
     let acceptanceTimeoutId: NodeJS.Timeout;
-    
-    // Array para armazenar múltiplas leituras e fazer média
-    let recentReadings: Array<{lat: number, lng: number, acc: number}> = [];
 
-    // Timeout de segurança máximo (30 segundos para GPS "esquentar")
+    // Timeout de segurança máximo
     timeoutId = setTimeout(() => {
       if (watchId) {
         navigator.geolocation.clearWatch(watchId);
@@ -100,97 +95,50 @@ export default function OlhoVivoROO() {
       if (bestAccuracy === Infinity) {
         setFormData(prev => ({
           ...prev,
-          locationError: 'Não foi possível obter localização. Verifique se o GPS está ativado e tente em área aberta.'
+          locationError: 'Não foi possível obter uma localização precisa. Tente novamente em área aberta.'
         }));
-      } else if (bestAccuracy >= 100) {
-        setFormData(prev => ({
-          ...prev,
-          locationError: `Precisão insuficiente (${Math.round(bestAccuracy)}m). É necessário precisão menor que 100m. Tente em área aberta com céu visível e aguarde mais tempo.`
-        }));
+        setIsRequestingLocation(false);
       }
-      setIsRequestingLocation(false);
-    }, 30000);
+    }, 15000);
 
     watchId = navigator.geolocation.watchPosition(
       (position) => {
         const accuracy = position.coords.accuracy;
-        readingsCount++;
         
-        console.log(`Leitura ${readingsCount} - Precisão: ${accuracy.toFixed(2)}m`);
-
-        // Descarta primeiras 3 leituras (normalmente são triangulação WiFi/celular)
-        if (readingsCount <= 3) {
-          console.log('Aguardando GPS estabilizar...');
-          setFormData(prev => ({
-            ...prev,
-            locationError: `Inicializando GPS... (${readingsCount}/3)`
-          }));
-          return;
-        }
-
-        // Armazena até as últimas 5 boas leituras para fazer média
-        if (accuracy < 100) {
-          recentReadings.push({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            acc: accuracy
-          });
-          
-          // Mantém apenas as 5 leituras mais recentes
-          if (recentReadings.length > 5) {
-            recentReadings.shift();
-          }
-        }
+        console.log(`Nova leitura - Precisão: ${accuracy.toFixed(2)}m`);
 
         // Se a precisão for melhor que a anterior, atualiza
         if (accuracy < bestAccuracy) {
           bestAccuracy = accuracy;
-          bestReading = position;
           
-          // Só aceita se a precisão for menor que 100m
-          if (accuracy < 100 && recentReadings.length >= 3) {
-            // Calcula média das últimas leituras para suavizar
-            const avgLat = recentReadings.reduce((sum, r) => sum + r.lat, 0) / recentReadings.length;
-            const avgLng = recentReadings.reduce((sum, r) => sum + r.lng, 0) / recentReadings.length;
-            const avgAcc = recentReadings.reduce((sum, r) => sum + r.acc, 0) / recentReadings.length;
-            
-            setFormData(prev => ({
-              ...prev,
-              location: {
-                latitude: avgLat,
-                longitude: avgLng,
-                accuracy: avgAcc
-              },
-              locationError: null
-            }));
+          setFormData(prev => ({
+            ...prev,
+            location: {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: accuracy
+            },
+            locationError: null
+          }));
 
-            // Se conseguir precisão excelente (< 20m) E tiver pelo menos 5 leituras, para
-            if (accuracy < 20 && recentReadings.length >= 5) {
-              navigator.geolocation.clearWatch(watchId);
-              clearTimeout(timeoutId);
-              if (acceptanceTimeoutId) clearTimeout(acceptanceTimeoutId);
-              setIsRequestingLocation(false);
-              console.log(`Localização de alta precisão obtida! Média de ${recentReadings.length} leituras.`);
-            }
-          } else if (accuracy >= 100) {
-            // Mostra feedback que está buscando precisão melhor
-            setFormData(prev => ({
-              ...prev,
-              locationError: `Buscando precisão melhor... Atual: ${Math.round(accuracy)}m (necessário: <100m). Leituras: ${readingsCount}`
-            }));
+          if (accuracy < 15) {
+            navigator.geolocation.clearWatch(watchId);
+            clearTimeout(timeoutId);
+            if (acceptanceTimeoutId) clearTimeout(acceptanceTimeoutId);
+            setIsRequestingLocation(false);
+            console.log('Localização de alta precisão obtida!');
           }
         }
 
-        // Timeout de aceitação: após 20 segundos, aceita se tiver precisão < 100m e pelo menos 5 leituras
         if (!acceptanceTimeoutId) {
           acceptanceTimeoutId = setTimeout(() => {
-            if (bestAccuracy < 100 && recentReadings.length >= 5) {
+            if (bestAccuracy < Infinity && bestAccuracy < 100) {
               navigator.geolocation.clearWatch(watchId);
               clearTimeout(timeoutId);
               setIsRequestingLocation(false);
-              console.log(`Localização aceita com precisão de ${bestAccuracy.toFixed(2)}m após ${readingsCount} leituras.`);
+              console.log(`Localização aceita com precisão de ${bestAccuracy.toFixed(2)}m`);
             }
-          }, 20000);
+          }, 12000);
         }
       },
       (error) => {
@@ -203,13 +151,13 @@ export default function OlhoVivoROO() {
         
         switch(error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = 'Permissão de localização negada. Habilite nas configurações do navegador e recarregue a página.';
+            errorMessage = 'Permissão de localização negada. Por favor, habilite nas configurações do navegador.';
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Localização indisponível. Verifique se o GPS está ativado e tente em área aberta com céu visível.';
+            errorMessage = 'Localização indisponível. Verifique se o GPS está ativado e tente em área aberta.';
             break;
           case error.TIMEOUT:
-            errorMessage = 'Tempo esgotado ao buscar localização precisa. Tente novamente em área aberta.';
+            errorMessage = 'Tempo esgotado. Verifique sua conexão e tente novamente.';
             break;
           default:
             errorMessage = `Erro: ${error.message}`;
@@ -241,12 +189,6 @@ export default function OlhoVivoROO() {
     // Verificações de segurança
     if (!formData.name || !formData.phone || !formData.location || !formData.description || !formData.photo || !formData.lgpdAccepted) {
       alert('Por favor, preencha todos os campos e aceite os termos de uso.');
-      return;
-    }
-
-    // Validação adicional de precisão
-    if (formData.location.accuracy && formData.location.accuracy >= 100) {
-      alert('A precisão da localização está muito baixa. Por favor, solicite a localização novamente em área aberta.');
       return;
     }
 
@@ -429,7 +371,7 @@ export default function OlhoVivoROO() {
 
               <div>
                 <label className="block text-gray-700 font-semibold mb-3">
-                  Localização (Precisão necessária: &lt;100m)
+                  Localização
                 </label>
                 <button
                   type="button"
@@ -457,14 +399,15 @@ export default function OlhoVivoROO() {
                               Precisão: ~{Math.round(formData.location.accuracy)}m
                               {formData.location.accuracy < 20 && ' ✓ Excelente'}
                               {formData.location.accuracy >= 20 && formData.location.accuracy < 50 && ' ✓ Boa'}
-                              {formData.location.accuracy >= 50 && formData.location.accuracy < 100 && ' ✓ Razoável'}
+                              {formData.location.accuracy >= 50 && formData.location.accuracy < 100 && ' ⚠ Razoável'}
+                              {formData.location.accuracy >= 100 && ' ⚠ Baixa'}
                             </p>
                           </div>
                         )}
                       </div>
                     </div>
                     
-                    {formData.location.accuracy && formData.location.accuracy >= 50 && formData.location.accuracy < 100 && (
+                    {formData.location.accuracy && formData.location.accuracy >= 50 && (
                       <button
                         type="button"
                         onClick={requestLocation}
@@ -483,12 +426,6 @@ export default function OlhoVivoROO() {
                     <p className="text-sm text-red-700">{formData.locationError}</p>
                   </div>
                 )}
-
-                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-xs text-blue-700">
-                    <strong>Dica:</strong> Para melhor precisão, certifique-se de estar em área aberta com céu visível e aguarde alguns segundos.
-                  </p>
-                </div>
               </div>
 
               <div>
