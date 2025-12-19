@@ -69,8 +69,8 @@ export default function OlhoVivoROO() {
     
     const options = {
       enableHighAccuracy: true,
-      timeout: 30000,
-      maximumAge: 0
+      timeout: 15000,
+      maximumAge: 10000
     };
 
     setFormData(prev => ({
