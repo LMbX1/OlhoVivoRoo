@@ -9,11 +9,12 @@ const MapWithNoSSR = dynamic(() => import('@/component/map'), {
   ssr: false,
   loading: () => <div className="p-10 text-center">Carregando mapa...</div>
 });
+
 // Definição da interface
 interface FormDataState {
   name: string;
   phone: string;
-  location: { latitude: number; longitude: number } | null;
+  location: { latitude: number; longitude: number; accuracy?: number } | null;
   locationError: string | null;
   description: string;
   photo: File | null;
@@ -70,7 +71,7 @@ export default function OlhoVivoROO() {
     const options = {
       enableHighAccuracy: true,
       timeout: 15000,
-      maximumAge: 10000
+      maximumAge: 0 // Força nova leitura sempre
     };
 
     setFormData(prev => ({
@@ -81,35 +82,85 @@ export default function OlhoVivoROO() {
 
     console.log('Solicitando localização...');
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        console.log('Localização obtida:', position.coords);
+    let bestAccuracy = Infinity;
+    let watchId: number;
+    let timeoutId: NodeJS.Timeout;
+    let acceptanceTimeoutId: NodeJS.Timeout;
+
+    // Timeout de segurança máximo
+    timeoutId = setTimeout(() => {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+      if (bestAccuracy === Infinity) {
         setFormData(prev => ({
           ...prev,
-          location: {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude
-          },
-          locationError: null
+          locationError: 'Não foi possível obter uma localização precisa. Tente novamente em área aberta.'
         }));
         setIsRequestingLocation(false);
+      }
+    }, 15000);
+
+    watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const accuracy = position.coords.accuracy;
+        
+        console.log(`Nova leitura - Precisão: ${accuracy.toFixed(2)}m`);
+
+        // Se a precisão for melhor que a anterior, atualiza
+        if (accuracy < bestAccuracy) {
+          bestAccuracy = accuracy;
+          
+          setFormData(prev => ({
+            ...prev,
+            location: {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: accuracy
+            },
+            locationError: null
+          }));
+
+          if (accuracy < 15) {
+            navigator.geolocation.clearWatch(watchId);
+            clearTimeout(timeoutId);
+            if (acceptanceTimeoutId) clearTimeout(acceptanceTimeoutId);
+            setIsRequestingLocation(false);
+            console.log('Localização de alta precisão obtida!');
+          }
+        }
+
+        if (!acceptanceTimeoutId) {
+          acceptanceTimeoutId = setTimeout(() => {
+            if (bestAccuracy < Infinity && bestAccuracy < 100) {
+              navigator.geolocation.clearWatch(watchId);
+              clearTimeout(timeoutId);
+              setIsRequestingLocation(false);
+              console.log(`Localização aceita com precisão de ${bestAccuracy.toFixed(2)}m`);
+            }
+          }, 12000);
+        }
       },
       (error) => {
         console.error('Erro de geolocalização:', error);
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+        clearTimeout(timeoutId);
+        if (acceptanceTimeoutId) clearTimeout(acceptanceTimeoutId);
+        
         let errorMessage = 'Erro ao obter localização';
         
         switch(error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = 'Permissão de localização negada. Por favor, habilite nas configurações do navegador e recarregue a página.';
+            errorMessage = 'Permissão de localização negada. Por favor, habilite nas configurações do navegador.';
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Localização indisponível. Verifique se o GPS/Wi-Fi está ativado e tente novamente.';
+            errorMessage = 'Localização indisponível. Verifique se o GPS está ativado e tente em área aberta.';
             break;
           case error.TIMEOUT:
-            errorMessage = 'Tempo esgotado ao buscar localização. Verifique sua conexão e tente novamente.';
+            errorMessage = 'Tempo esgotado. Verifique sua conexão e tente novamente.';
             break;
           default:
-            errorMessage = `Erro desconhecido: ${error.message}`;
+            errorMessage = `Erro: ${error.message}`;
         }
         
         setFormData(prev => ({
@@ -148,9 +199,11 @@ export default function OlhoVivoROO() {
       dataToSend.append('name', formData.name);
       dataToSend.append('phone', formData.phone);
       dataToSend.append('description', formData.description);
-      // Forçando conversão para string para evitar erro de tipo no append
       dataToSend.append('latitude', String(formData.location.latitude));
       dataToSend.append('longitude', String(formData.location.longitude));
+      if (formData.location.accuracy) {
+        dataToSend.append('accuracy', String(formData.location.accuracy));
+      }
       dataToSend.append('photo', formData.photo);
 
       const response = await fetch('/api/denuncias', {
@@ -206,6 +259,7 @@ export default function OlhoVivoROO() {
   const goToForm = () => {
     setCurrentPage('form');
   };
+
   if (currentPage === 'map') {
     return (
       <MapWithNoSSR 
@@ -214,7 +268,7 @@ export default function OlhoVivoROO() {
       />
     );
   }
-  // Renderização
+
   if (currentPage === 'home') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-6">
@@ -260,7 +314,6 @@ export default function OlhoVivoROO() {
                 ) : (
                   <>
                     <MapIcon className="w-6 h-6" />
-
                     Visualizar Mapa de Denúncias
                   </>
                 )}
@@ -327,19 +380,43 @@ export default function OlhoVivoROO() {
                   className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all duration-200"
                 >
                   <MapPin className="w-5 h-5" />
-                  {isRequestingLocation ? 'Buscando localização...' : 'Solicitar Localização'}
+                  {isRequestingLocation ? 'Buscando localização precisa...' : 'Solicitar Localização'}
                 </button>
 
                 {formData.location && (
-                  <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm">
-                      <p className="font-semibold text-green-800">Localização capturada com sucesso!</p>
-                      <p className="text-green-700">
-                        Lat: {formData.location.latitude.toFixed(6)}, 
-                        Lng: {formData.location.longitude.toFixed(6)}
-                      </p>
+                  <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm flex-1">
+                        <p className="font-semibold text-green-800">Localização capturada!</p>
+                        <p className="text-green-700">
+                          Lat: {formData.location.latitude.toFixed(6)}, 
+                          Lng: {formData.location.longitude.toFixed(6)}
+                        </p>
+                        {formData.location.accuracy && (
+                          <div className="mt-2">
+                            <p className="text-green-600 font-medium">
+                              Precisão: ~{Math.round(formData.location.accuracy)}m
+                              {formData.location.accuracy < 20 && ' ✓ Excelente'}
+                              {formData.location.accuracy >= 20 && formData.location.accuracy < 50 && ' ✓ Boa'}
+                              {formData.location.accuracy >= 50 && formData.location.accuracy < 100 && ' ⚠ Razoável'}
+                              {formData.location.accuracy >= 100 && ' ⚠ Baixa'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
+                    
+                    {formData.location.accuracy && formData.location.accuracy >= 50 && (
+                      <button
+                        type="button"
+                        onClick={requestLocation}
+                        disabled={isRequestingLocation}
+                        className="mt-3 w-full bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
+                      >
+                        {isRequestingLocation ? 'Buscando...' : 'Tentar obter precisão melhor'}
+                      </button>
+                    )}
                   </div>
                 )}
 
